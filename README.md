@@ -57,16 +57,21 @@ For any enquiries, please contact the main authors.
 
 ## Installation Details
 
-We're currently testing a conda package. You can install in your current environment with:
+You can install this package by following the below steps:
 
 ```
-conda install -c conda-forge -c nilmtk nilmtk-contrib
+git clone https://github.com/Aayush75/nilmtk-contrib.git
+```
+Then locate to the directory using
+
+```
+cd nilmtk-contrib
 ```
 
-or create a dedicated environment (recommended) with:
+Then just do
 
 ```
-conda create -n nilm -c conda-forge -c nilmtk nilmtk-contrib
+pip install .
 ```
 
 Refer to this [notebook](https://github.com/nilmtk/nilmtk-contrib/tree/master/sample_notebooks) for using the nilmtk-contrib algorithms, using the new NILMTK-API.
