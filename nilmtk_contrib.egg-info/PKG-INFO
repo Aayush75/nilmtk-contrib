@@ -1,3 +1,35 @@
+Metadata-Version: 2.4
+Name: nilmtk-contrib
+Version: 0.1.2.dev1+git.0dd2ef5
+Summary: State-of-the-art algorithms for the task of energy disaggregation implemented using NILMTK's Rapid Experimentation API
+Home-page: https://github.com/nilmtk/nilmtk-contrib
+Download-URL: https://github.com/nilmtk/nilmtk-contrib/tarball/master#egg=nilmtk-contrib-dev
+Author: NILMTK-contrib developers
+Author-email: 
+License: Apache 2.0
+Keywords: smartmeters power electricity energy analytics redd disaggregation nilm nialm nilmtk
+Classifier: Development Status :: 3 - Alpha
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: Apache 2.0
+Classifier: Programming Language :: Python
+Classifier: Topic :: Scientific/Engineering :: Mathematics
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: nilmtk
+Requires-Dist: tensorflow<2.16.0,>=2.12.0
+Requires-Dist: cvxpy>=1.0.0
+Dynamic: author
+Dynamic: classifier
+Dynamic: description
+Dynamic: description-content-type
+Dynamic: download-url
+Dynamic: home-page
+Dynamic: keywords
+Dynamic: license
+Dynamic: license-file
+Dynamic: requires-dist
+Dynamic: summary
+
 [![conda package version](https://anaconda.org/nilmtk/nilmtk-contrib/badges/version.svg)](https://anaconda.org/nilmtk/nilmtk-contrib)
 
 # Note

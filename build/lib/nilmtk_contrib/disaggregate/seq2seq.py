@@ -1,32 +1,10 @@
-from __future__ import print_function, division
-from warnings import warn
-
-from tensorflow.keras.layers import Conv2D, ZeroPadding1D,MaxPooling1D
-from tensorflow.keras.layers import Activation
-from tensorflow.keras.layers import BatchNormalization
-from tensorflow.keras.layers import AveragePooling1D
-
-from nilmtk.disaggregate import Disaggregator
-from tensorflow.keras.layers import Layer,Conv1D, Dense, Dropout, Reshape, Flatten,Add,MaxPool1D,BatchNormalization
-import os
-import pandas as pd
-import numpy as np
-import pickle
 from collections import OrderedDict
-
-from tensorflow.keras.optimizers import SGD
-from tensorflow.keras.models import Sequential, load_model
-import matplotlib.pyplot as plt
-from sklearn.model_selection import train_test_split
+import numpy as np
+import pandas as pd
+from nilmtk.disaggregate import Disaggregator
 from tensorflow.keras.callbacks import ModelCheckpoint
-import tensorflow.keras.backend as K
-import tensorflow as tf
-gpus=tf.config.experimental.list_physical_devices("GPU")
-for gpu in gpus:
-    tf.config.experimental.set_memory_growth(gpu,True)
-import random
-random.seed(10)
-np.random.seed(10)
+from tensorflow.keras.layers import Conv1D, Dense, Dropout, Flatten
+from tensorflow.keras.models import Sequential
 
 
 class SequenceLengthError(Exception):
@@ -37,138 +15,42 @@ class ApplianceNotFoundError(Exception):
 
 
 
-
-class identity_block(Layer):
-    def __init__(self, filter,kernel_size):
-        super(identity_block, self).__init__()
-        self.conv1=Conv1D(filters=filter[0],kernel_size=kernel_size,
-                            strides=1,padding="same")
-        self.conv2=Conv1D(filters=filter[1],
-                            kernel_size=kernel_size,padding="same")
-        self.conv3=Conv1D(filters=filter[2],
-                                kernel_size=kernel_size,
-                                padding="same")
-
-        self.act1=Activation("relu")
-        self.act2=Activation("relu")
-        self.act3=Activation("relu")
-
-    def call(self, x):
-        first_layer =   x
-        x = self.conv1(x)
-        x = self.act1(x)
-        x = self.conv2(x) 
-        x = self.act2(x)
-        x = self.conv3(x)
-        residual =      Add()([x, first_layer])
-        x =             self.act3(residual)
-        return x
-
-    def compute_output_shape(self, input_shape):
-        return input_shape
-
-    def get_config(self):
-        config = super().get_config().copy()
-        config.update({
-            'conv1'       : self.conv1,
-            'conv2'       : self.conv2,
-            'conv3': self.conv3,
-            'act1': self.act1,
-            'act2': self.act2,
-            'act3': self.act3,
-
-        })
-        return config
-
-
-
-class convolution_block(Layer):
-    def __init__(self, filter,kernel_size):
-        super(convolution_block, self).__init__()
-        self.conv1=Conv1D(filters=filter[0],kernel_size=kernel_size,
-                            strides=1,padding="same")
-        self.conv2=Conv1D(filters=filter[1],
-                            kernel_size=kernel_size,padding="same")
-        self.conv3=Conv1D(filters=filter[2],
-                                kernel_size=kernel_size,
-                                padding="same")
-        self.conv4=Conv1D(filters=filter[2],
-                                kernel_size=kernel_size,
-                                padding="same")
-        self.act1=Activation("relu")
-        self.act2=Activation("relu")
-        self.act3=Activation("relu")
-        self.act4=Activation("relu")
-
-    def call(self, x):
-        first_layer =   x
-        x =             self.conv1(x)
-        x =             self.act1(x)
-        x =             self.conv2(x)
-        x =             self.act2(x)
-        x =             self.conv3(x)
-        x =             self.act3(x)
-
-        first_layer =   self.conv4(first_layer)
-
-        convolution =   Add()([x, first_layer])
-        x =             self.act4(convolution)
-        return x
-
-    def compute_output_shape(self, input_shape):
-        return input_shape
-
-    def get_config(self):
-        config = super().get_config().copy()
-        config.update({
-            'conv1'       : self.conv1,
-            'conv2'       : self.conv2,
-            'conv3': self.conv3,
-            'conv4': self.conv4,
-            'act1': self.act1,
-            'act2': self.act2,
-            'act3': self.act3,
-            'act4': self.act4,
-        })
-        return config
-
-class ResNet(Disaggregator):
+class Seq2Seq(Disaggregator):
 
     def __init__(self, params):
 
-        self.MODEL_NAME = "ResNet"
+        self.MODEL_NAME = "Seq2Seq"
+        self.file_prefix = "{}-temp-weights".format(self.MODEL_NAME.lower())
         self.chunk_wise_training = params.get('chunk_wise_training',False)
-        self.sequence_length = params.get('sequence_length',299)
+        self.sequence_length = params.get('sequence_length',99)
         self.n_epochs = params.get('n_epochs', 10)
         self.models = OrderedDict()
         self.mains_mean = 1800
         self.mains_std = 600
         self.batch_size = params.get('batch_size',512)
-        self.load_model_path=params.get('load_model_path',None)
         self.appliance_params = params.get('appliance_params',{})
         if self.sequence_length%2==0:
             print ("Sequence length should be odd!")
             raise (SequenceLengthError)
 
-    def partial_fit(self,train_main,train_appliances,do_preprocessing=True,**load_kwargs):
-
-        print("...............ResNet partial_fit running...............")
+    def partial_fit(self, train_main, train_appliances, do_preprocessing=True, current_epoch=0, **load_kwargs):
+        print("...............Seq2Seq partial_fit running...............")
         if len(self.appliance_params) == 0:
             self.set_appliance_params(train_appliances)
 
         if do_preprocessing:
             train_main, train_appliances = self.call_preprocessing(
                 train_main, train_appliances, 'train')
-        train_main = pd.concat(train_main,axis=0)
-        train_main = train_main.values.reshape((-1,self.sequence_length,1))
-        
+
+        train_main = pd.concat(train_main, axis=0)
+        train_main = train_main.values.reshape((-1, self.sequence_length, 1))
         new_train_appliances = []
         for app_name, app_dfs in train_appliances:
-            app_df = pd.concat(app_dfs,axis=0)
-            app_df_values = app_df.values.reshape((-1,self.sequence_length))
+            app_df = pd.concat(app_dfs, axis=0)
+            app_df_values = app_df.values.reshape((-1, self.sequence_length))
             new_train_appliances.append((app_name, app_df_values))
+
         train_appliances = new_train_appliances
-        print(train_appliances)
         for appliance_name, power in train_appliances:
             if appliance_name not in self.models:
                 print("First model training for ", appliance_name)
@@ -181,16 +63,22 @@ class ResNet(Disaggregator):
                 # Sometimes chunks can be empty after dropping NANS
                 if len(train_main) > 10:
                     # Do validation when you have sufficient samples
-                    filepath = 'ResNet-temp-weights-'+str(random.randint(0,100000))+'.h5'
+                    filepath = self.file_prefix + "-{}-epoch{}.h5".format(
+                            "_".join(appliance_name.split()),
+                            current_epoch,
+                    )
                     checkpoint = ModelCheckpoint(filepath,monitor='val_loss',verbose=1,save_best_only=True,mode='min')
-                    train_x, v_x, train_y, v_y = train_test_split(train_main, power, test_size=.15,random_state=10)
-                    history=model.fit(train_x,train_y,validation_data=(v_x,v_y),epochs=self.n_epochs,callbacks=[checkpoint],batch_size=self.batch_size)
+                    model.fit(
+                            train_main, power,
+                            validation_split=.15,
+                            epochs=self.n_epochs,
+                            batch_size=self.batch_size,
+                            callbacks=[ checkpoint ],
+                    )
                     model.load_weights(filepath)
 
-
-
+                    
     def disaggregate_chunk(self,test_main_list,model=None,do_preprocessing=True):
-
         if model is not None:
             self.models = model
 
@@ -238,34 +126,22 @@ class ResNet(Disaggregator):
 
         return test_predictions
 
-
-
-
     def return_network(self):
 
-        num_filters=30
         model = Sequential()
-
-        model.add(ZeroPadding1D(padding=3,input_shape=(self.sequence_length,1)))        
-        model.add(Conv1D(num_filters,48,activation="relu",strides=2))
-        model.add(BatchNormalization(axis=2))
-        model.add(Activation('relu'))
-        model.add(MaxPooling1D(3,strides=2))
-
-        #Two types of residual block used for resnet
-        model.add(convolution_block([num_filters,num_filters,num_filters],24))
-        model.add(identity_block([num_filters,num_filters,num_filters],12))    
-        model.add(identity_block([num_filters,num_filters,num_filters],6))
-
-        #Fully connected layers
+        # 1D Conv
+        model.add(Conv1D(30,10,activation="relu",input_shape=(self.sequence_length,1),strides=2))
+        model.add(Conv1D(30, 8, activation='relu', strides=2))
+        model.add(Conv1D(40, 6, activation='relu', strides=1))
+        model.add(Conv1D(50, 5, activation='relu', strides=1))
+        model.add(Dropout(.2))
+        model.add(Conv1D(50, 5, activation='relu', strides=1))
+        model.add(Dropout(.2))
         model.add(Flatten())
         model.add(Dense(1024, activation='relu'))
         model.add(Dropout(.2))
-        model.add(Dense(self.sequence_length,activation='linear'))
-
-        model.summary()
+        model.add(Dense(self.sequence_length))
         model.compile(loss='mse', optimizer='adam')
-
 
         return model
 
@@ -281,14 +157,13 @@ class ResNet(Disaggregator):
                 new_mains = np.array([new_mains[i:i + n] for i in range(len(new_mains) - n + 1)])
                 new_mains = (new_mains - self.mains_mean) / self.mains_std
                 processed_mains_lst.append(pd.DataFrame(new_mains))
+            #new_mains = pd.DataFrame(new_mains)
             appliance_list = []
             for app_index, (app_name, app_df_lst) in enumerate(submeters_lst):
 
                 if app_name in self.appliance_params:
                     app_mean = self.appliance_params[app_name]['mean']
                     app_std = self.appliance_params[app_name]['std']
-                    app_min=self.appliance_params[app_name]['min']
-                    app_max=self.appliance_params[app_name]['max']
                 else:
                     print ("Parameters for ", app_name ," were not found!")
                     raise ApplianceNotFoundError()
@@ -328,8 +203,7 @@ class ResNet(Disaggregator):
             l = np.array(pd.concat(df_list,axis=0))
             app_mean = np.mean(l)
             app_std = np.std(l)
-            app_max=np.max(l)
-            app_min=np.min(l)
             if app_std<1:
                 app_std = 100
-            self.appliance_params.update({app_name:{'mean':app_mean,'std':app_std,'max':app_max,'min':app_min}})
+            self.appliance_params.update({app_name:{'mean':app_mean,'std':app_std}})
+
