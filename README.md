@@ -1,7 +1,7 @@
 [![conda package version](https://anaconda.org/nilmtk/nilmtk-contrib/badges/version.svg)](https://anaconda.org/nilmtk/nilmtk-contrib)
 
 # Note
-This package only support python <= 3.11, so make sure you are using this version or downgrade to it.
+This package only supports python <= 3.11, so make sure you are using this version or downgrade to it.
 
 # NILMTK-Contrib
 
