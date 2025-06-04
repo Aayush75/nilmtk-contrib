@@ -2,84 +2,93 @@ from setuptools import setup
 import os
 import sys
 import warnings
+import subprocess
 
 # Loosely based on NILMTK's setup.py
 
 TRAVIS_TAG = os.environ.get('TRAVIS_TAG', '')
 
 if TRAVIS_TAG:
-    #TODO: validate if the tag is a valid version number
+    # Use the tag as version and mark as release unless 'dev' is in it
     VERSION = TRAVIS_TAG
-    ISRELEASED = not ('dev' in TRAVIS_TAG)
+    ISRELEASED = 'dev' not in TRAVIS_TAG
     QUALIFIER = ''
 else:
     MAJOR = 0
     MINOR = 1
     MICRO = 2
-    DEV = 1 # For multiple dev pre-releases, please increment this value
+    DEV = 1  # Increment for multiple dev pre-releases
     ISRELEASED = False
-    VERSION = '%d.%d.%d' % (MAJOR, MINOR, MICRO)
+    VERSION = f"{MAJOR}.{MINOR}.{MICRO}"
     QUALIFIER = ''
 
-
 FULLVERSION = VERSION
+
 if not ISRELEASED and not TRAVIS_TAG:
     try:
-        import subprocess
-        try:
-            pipe = subprocess.Popen(["git", "rev-parse", "--short", "HEAD"],
-                                    stdout=subprocess.PIPE).stdout
-        except OSError:
-            # msysgit compatibility
-            pipe = subprocess.Popen(
-                ["git.cmd", "rev-parse", "--short", "HEAD"],
-                stdout=subprocess.PIPE).stdout
-        rev = pipe.read().strip()
-        # makes distutils blow up on Python 2.7
-        if sys.version_info[0] >= 3:
-            rev = rev.decode('ascii')
+        # Try standard git
+        pipe = subprocess.Popen(
+            ["git", "rev-parse", "--short", "HEAD"],
+            stdout=subprocess.PIPE
+        ).stdout
+    except OSError:
+        # Fallback for msysgit
+        pipe = subprocess.Popen(
+            ["git.cmd", "rev-parse", "--short", "HEAD"],
+            stdout=subprocess.PIPE
+        ).stdout
 
-        # Use a local version tag to include the git revision
-        FULLVERSION += ".dev{}+git.{}".format(DEV, rev)
-    except:
-        FULLVERSION += ".dev{}".format(DEV)
-        warnings.warn('WARNING: Could not get the git revision, version will be "{}"'.format(FULLVERSION))
+    raw = pipe.read().strip()
+    if sys.version_info[0] >= 3:
+        raw = raw.decode('ascii')
+    rev = raw or None
+
+    if rev:
+        FULLVERSION += f".dev{DEV}+git.{rev}"
+    else:
+        FULLVERSION += f".dev{DEV}"
 else:
     FULLVERSION += QUALIFIER
 
-
 def write_version_py(filename=None):
-    cnt = """\
+    content = """\
 version = '%s'
 short_version = '%s'
 """
     if not filename:
         filename = os.path.join(
-            os.path.dirname(__file__), 'nilmtk_contrib', 'version.py')
+            os.path.dirname(__file__), 'nilmtk_contrib', 'version.py'
+        )
+    with open(filename, 'w') as fp:
+        fp.write(content % (FULLVERSION, VERSION))
 
-    a = open(filename, 'w')
-    try:
-        a.write(cnt % (FULLVERSION, VERSION))
-    finally:
-        a.close()
-        
 write_version_py()
-# End of Version Check
+# End of version writing
 
 setup(
     name='nilmtk-contrib',
     version=FULLVERSION,
-    packages=['nilmtk_contrib', 'nilmtk_contrib.disaggregate'],
+    packages=[
+        'nilmtk_contrib',
+        'nilmtk_contrib.disaggregate'
+    ],
     install_requires=[
-        'nilmtk',
+        'nilmtk @ git+https://github.com/nilmtk/nilmtk.git',
+        'nilm_metadata @ git+https://github.com/nilmtk/nilm_metadata.git',
         'tensorflow>=2.12.0,<2.16.0',
         'cvxpy>=1.0.0'
     ],
-    description="State-of-the-art algorithms for the task of energy disaggregation implemented using NILMTK's Rapid Experimentation API",
+    description=(
+        "State-of-the-art algorithms for energy disaggregation "
+        "using NILMTK's Rapid Experimentation API"
+    ),
     author='NILMTK-contrib developers',
     author_email='',
     url='https://github.com/nilmtk/nilmtk-contrib',
-    download_url="https://github.com/nilmtk/nilmtk-contrib/tarball/master#egg=nilmtk-contrib-dev",
+    download_url=(
+        "https://github.com/nilmtk/nilmtk-contrib/"
+        "tarball/master#egg=nilmtk-contrib-dev"
+    ),
     long_description=open('README.md').read(),
     long_description_content_type='text/markdown',
     license='Apache 2.0',
@@ -90,6 +99,8 @@ setup(
         'Programming Language :: Python',
         'Topic :: Scientific/Engineering :: Mathematics',
     ],
-    keywords='smartmeters power electricity energy analytics redd '
-             'disaggregation nilm nialm nilmtk'
+    keywords=(
+        'smartmeters power electricity energy analytics '
+        'nilm disaggregation nilmtk nilmtk-contrib'
+    )
 )

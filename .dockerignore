@@ -1,0 +1,10 @@
+# Exclude Python bytecode and caches
+__pycache__/
+*.pyc
+
+# Exclude Git metadata
+.git
+
+# Exclude Jupyter notebooks and example data
+notebooks/
+data/
